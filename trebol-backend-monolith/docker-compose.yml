@@ -1,0 +1,34 @@
+# Local stack: app + MySQL 8. Usage: copy .env.example to .env, then `docker compose up --build`
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: trebol
+      MYSQL_USER: trebol
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      retries: 20
+
+  app:
+    build: .
+    image: trebol-api:local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      DB_URL: jdbc:mariadb://db:3306/trebol
+      DB_USER: trebol
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SEED_MODE: always
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:
