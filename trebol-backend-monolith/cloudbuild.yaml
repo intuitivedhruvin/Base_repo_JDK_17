@@ -1,0 +1,12 @@
+# First image without local Docker (run from the repo root):
+#   gcloud builds submit trebol-backend-monolith --config trebol-backend-monolith/cloudbuild.yaml \
+#     --service-account=projects/itp-agentspace/serviceAccounts/trebol-ci@itp-agentspace.iam.gserviceaccount.com
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_IMAGE}:${_TAG}", "."]
+images: ["${_IMAGE}:${_TAG}"]
+substitutions:
+  _IMAGE: asia-south1-docker.pkg.dev/itp-agentspace/trebol/trebol-api
+  _TAG: initial
+options:
+  logging: CLOUD_LOGGING_ONLY

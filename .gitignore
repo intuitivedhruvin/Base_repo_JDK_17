@@ -1,2 +1,7 @@
 *.log
 .env
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example

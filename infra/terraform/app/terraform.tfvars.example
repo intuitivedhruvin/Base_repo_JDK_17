@@ -1,0 +1,2 @@
+image = "asia-south1-docker.pkg.dev/itp-agentspace/trebol/trebol-api:initial"
+# db_availability_type = "ZONAL"   # cheaper while iterating
