@@ -1,0 +1,102 @@
+# CD: on merge to main, build and push the image, deploy a new Cloud Run
+# revision with no traffic, smoke test it, then shift traffic.
+# A failed smoke test leaves traffic on the previous revision (automatic rollback).
+# Skipped until the GCP_* repository variables exist (see infra/README.md).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # for Workload Identity Federation
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  SERVICE: trebol-api
+  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/trebol/trebol-api
+
+jobs:
+  deploy:
+    name: Build, deploy, verify
+    if: vars.GCP_WIF_PROVIDER != ''
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Docker login to Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: trebol-backend-monolith
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image (fail on CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Remember current revision
+        id: prev
+        run: |
+          REV=$(gcloud run services describe "$SERVICE" --region "$REGION" \
+            --format='value(status.traffic[0].revisionName)')
+          echo "revision=$REV" >> "$GITHUB_OUTPUT"
+          echo "Serving now: $REV"
+
+      - name: Deploy new revision with no traffic
+        id: deploy
+        run: |
+          TAG="sha-${GITHUB_SHA::7}"
+          gcloud run deploy "$SERVICE" --region "$REGION" \
+            --container app --image "$IMAGE:$GITHUB_SHA" \
+            --no-traffic --tag "$TAG" --quiet
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
+            --format=json | jq -r --arg t "$TAG" '.status.traffic[] | select(.tag==$t) | .url')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "Candidate URL: $URL"
+
+      - name: Smoke test candidate
+        run: bash test-endpoints.sh "${{ steps.deploy.outputs.url }}"
+
+      - name: Shift all traffic to new revision
+        run: gcloud run services update-traffic "$SERVICE" --region "$REGION" --to-latest --quiet
+
+      - name: Smoke test live URL
+        id: live
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')
+          bash test-endpoints.sh "$URL"
+
+      - name: Roll back on failure
+        if: failure() && steps.prev.outputs.revision != ''
+        run: |
+          echo "Rolling back to ${{ steps.prev.outputs.revision }}"
+          gcloud run services update-traffic "$SERVICE" --region "$REGION" \
+            --to-revisions "${{ steps.prev.outputs.revision }}=100" --quiet

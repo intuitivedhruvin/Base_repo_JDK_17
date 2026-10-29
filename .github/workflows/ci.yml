@@ -1,0 +1,89 @@
+# CI: runs on every pull request and on pushes to POC branches.
+# Needs no GCP access: build, test, image, vulnerability scan, smoke test.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: ["poc/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: trebol-backend-monolith
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+          cache: maven
+
+      - name: Build and run tests
+        run: mvn -B verify
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: trebol-backend-monolith/target/surefire-reports
+          retention-days: 7
+
+  image:
+    name: Image, scan and smoke test
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: trebol-backend-monolith
+          tags: trebol-api:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image (fail on CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: trebol-api:ci
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Start container (H2 mode)
+        run: |
+          docker run -d --name api -p 8080:8080 trebol-api:ci
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/actuator/health/readiness && exit 0
+            sleep 2
+          done
+          docker logs api
+          exit 1
+
+      - name: Smoke test
+        working-directory: .
+        run: bash test-endpoints.sh http://localhost:8080
+
+      - name: Container logs
+        if: always()
+        run: docker logs api | tail -100

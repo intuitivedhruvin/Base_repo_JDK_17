@@ -83,3 +83,4 @@ call "Delete shipper" 204 DELETE "/data/shippers?name=$SH" "" "$ADMIN"
 
 rm -f "$TMP" "$HDR"
 echo "=== SUMMARY: $N checks, $PASS passed, $FAIL failed ==="
+[ "$FAIL" -eq 0 ]   # non-zero exit fails CI
