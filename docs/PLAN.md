@@ -80,3 +80,37 @@ Alerts: 5xx rate > 1% (5 min), P95 > 500 ms, CPU > 80%, uptime check failure. Te
 - **Risk:** 10k concurrent at P95 < 500 ms depends on DB-bound endpoints; caching and Cloud SQL tier are the levers. Budget for a larger Cloud SQL tier during the test window.
 - Mailgun not configured (out of scope); mail features disabled.
 - Single region (us-central1 / asia-south1); multi-region left as a documented extension.
+
+## 9. Revisions (2026-10-29)
+These decisions were made after the plan was written. Where they conflict with sections 1–8, they override them.
+
+| Area | Original plan | Now | Why |
+|---|---|---|---|
+| GCP project | Not named | `itp-agentspace`, region `asia-south1` | Project already exists |
+| Developer access | Owner/Editor | **Editor only** | Least privilege, and a faster approval |
+| IAM setup | Developer | A teammate with Owner applies `infra/terraform/bootstrap` once | Editor can't grant roles |
+| Terraform | One stack | `bootstrap` (Owner) + `app` (Editor) | Splits the work by who has which permission |
+| CI service account | `gh-ci` | `trebol-ci` | GCP needs account IDs of at least 6 characters |
+| Cloud SQL connection | Private IP | Public IP with no authorized networks, plus a Cloud SQL Auth Proxy sidecar | No VPC peering needed; access is still IAM-only |
+| Public URL | `allUsers` invoker binding | `invoker_iam_disabled` on the service | No IAM change needed at deploy time |
+| Secret access | Per-secret IAM | Project-level `secretAccessor` for the runtime SA | Editor can't set IAM on secrets |
+| Repository | `Mahesh-Sutar-itp/Base_repo_JDK_17` | Fork `intuitivedhruvin/Base_repo_JDK_17`, branch `poc/gcp-plan` | No write access to the original |
+| Image builds | Local Docker | GitHub Actions and Cloud Build | Local Docker needs WSL2 (admin ticket raised) |
+| Code quality | SonarCloud | Maven tests + Trivy; Sonar is optional | A Sonar token isn't available on the fork |
+
+### Status
+| Day | Item | Status |
+|---|---|---|
+| 1 | Analysis, Dockerfile, compose, MySQL profile, probes | Done. 363 tests pass in CI; the local compose run waits on WSL2 |
+| 2 | Terraform bootstrap + app | Written and validated; apply waits on GCP access |
+| 3 | CI workflow (test, image, Trivy, container smoke test) | Running on GitHub |
+| 3 | Deploy workflow (no-traffic revision, smoke test, traffic shift, rollback) | Written; switches on when the `GCP_*` repo variables are set |
+| 4–5 | Monitoring, k6, docs | Not started |
+
+### Blockers
+- Editor access on `itp-agentspace` (request sent to Vincent Yin, CC Jayesh Purohit)
+- Teammate with Owner runs the bootstrap stack
+- WSL2 on the laptop (IT ticket) for local Docker
+
+### Local Windows note
+The username contains parentheses, which breaks Maven's forked test JVM. Run tests locally with `mvn verify "-DforkCount=0" "-Djacoco.skip=true"`. CI isn't affected.

@@ -4,9 +4,10 @@ WORKDIR /src
 COPY pom.xml .
 RUN mvn -B -q dependency:go-offline
 COPY src ./src
-# Tests run in CI; the image build only packages
+# Tests run in CI; the image build only packages.
+# pom.xml packages an executable war, not a jar
 RUN mvn -B -q package -DskipTests \
- && java -Djarmode=layertools -jar target/*.jar extract --destination /layers
+ && java -Djarmode=layertools -jar target/*.war extract --destination /layers
 
 # ---- Runtime stage ----
 FROM eclipse-temurin:17-jre-alpine
@@ -23,4 +24,4 @@ ENV SERVER_PORT=8080 \
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
   CMD wget -qO- http://localhost:8080/actuator/health/readiness || exit 1
-ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["java", "org.springframework.boot.loader.launch.WarLauncher"]
