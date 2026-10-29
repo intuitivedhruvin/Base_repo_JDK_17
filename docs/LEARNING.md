@@ -35,6 +35,16 @@ Cloud Monitoring watches it → email alert if something breaks
 | Workload Identity Federation | GitHub proves who it is to Google without a password file |
 | Smoke test | A quick check of the main features after a deploy ("is there smoke?") |
 | Rollback | Going back to the last working version |
+| JAR | A zip of compiled Java code. A Spring Boot jar also holds all its libraries and a web server, so `java -jar` runs everything |
+| WAR | Also a zip, in the layout traditional Java web servers expect (`WEB-INF/classes`, `WEB-INF/lib`). This project builds one, and Spring Boot makes it runnable too |
+| JarLauncher / WarLauncher | Spring Boot's small starter class that finds the libraries inside the file and starts the app. There's one for each file type |
+| Tomcat | The web server inside the app, listening on port 8080 |
+| Dependency | A library the app uses. Most security holes are in dependencies, not in your own code |
+| CVE | A public ID for a known security hole (e.g. `CVE-2025-24813`) |
+| Severity | How dangerous a CVE is: CRITICAL > HIGH > MEDIUM > LOW |
+| Trivy | A scanner that lists every library in an image and checks it against the CVE database |
+| Version `major.minor.patch` | Patch = fixes only (safe). Minor = new features. Major = can break your code |
+| Risk acceptance | Writing down a known, unfixable-for-now issue with a reason and a review date (`.trivyignore`), instead of hiding it |
 
 ## How to solve any problem: 5 questions
 
@@ -101,6 +111,8 @@ Cloud Monitoring watches it → email alert if something breaks
 | Push rejected | HTTP 403 | Logged in, but no write access to Mahesh's repo | Forked the repo to our own account | 401 = "who are you?", 403 = "not allowed" |
 | Terraform error | "account_id must be 6–30 characters" | `gh-ci` is too short | Renamed it to `trebol-ci` | Validate early (`terraform validate`), before touching the cloud |
 | CI job didn't start | "unable to find version 0.28.0" | The Trivy action's tags start with `v` | Changed it to `v0.36.0` | Check the real tag list (`gh api .../tags`) instead of guessing |
+| Docker build failed | "Unable to access jarfile target/*.jar" | `pom.xml` says `<packaging>war</packaging>`, so there was no jar | Use `*.war` and `WarLauncher` | Check your assumptions against the config files. CI caught a Day 1 bug nobody could see locally |
+| Security scan blocked the image | 10 CRITICAL CVEs | Old Tomcat, Spring Security and Spring MVC from Spring Boot 3.2.9 | Patch upgrades fixed 8; 2 need a major upgrade, so they're documented in `.trivyignore` | Fix what's safe now, record the rest honestly, and never just switch the scanner off |
 
 ## Languages used (no Java coding needed)
 
