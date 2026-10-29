@@ -45,6 +45,9 @@
     <!-- Dependencies -->
     <jjwt.version>0.11.5</jjwt.version>
     <unirest.version>3.13.8</unirest.version>
+    <!-- Patch-level overrides of Spring Boot managed versions for CRITICAL CVEs (see .trivyignore) -->
+    <tomcat.version>10.1.61</tomcat.version>
+    <spring-security.version>6.2.8</spring-security.version>
 
     <!-- Plugins configuration -->
     <java.endorsed-api.dir>${project.build.directory}/endorsed</java.endorsed-api.dir>

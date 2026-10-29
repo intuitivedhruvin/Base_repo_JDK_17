@@ -61,6 +61,7 @@ jobs:
           severity: CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+          trivyignores: .trivyignore
 
       - name: Remember current revision
         id: prev

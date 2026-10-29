@@ -1,0 +1,10 @@
+# Accepted CRITICAL findings. Each one needs a reason and a review date.
+# The fix for all of these is upgrading Spring Boot 3.2 -> 3.5+/4.x, which is out of scope for the POC.
+
+# Spring Security 6.2.x: fixed only in 6.5.9 / 7.0.4 (Spring Boot 3.5+).
+# Review by 2026-12-31.
+CVE-2026-22732
+
+# Spring Web MVC 6.1.x: fixed only in Spring Framework 7.0.9 (Spring Boot 4).
+# Review by 2026-12-31.
+CVE-2026-47884
